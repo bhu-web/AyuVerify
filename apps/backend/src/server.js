@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { initDB } = require('./config/db');
 const authRoutes = require('./routes/auth');
+const batchRoutes = require('./routes/batches');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -15,6 +16,7 @@ initDB();
 
 // API Routes
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/batches', batchRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'AyuVerify Backend Service Running', timestamp: new Date() });
