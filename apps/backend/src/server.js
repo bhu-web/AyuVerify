@@ -12,6 +12,20 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Set basic headers to allow local DevTools connects
+app.use((req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:*;"
+  );
+  next();
+});
+
+// Ignore Chrome/Edge DevTools auto-discovery requests silently (prevents 404 logs)
+app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
+  res.status(204).end();
+});
+
 // Initialize Database
 initDB();
 
