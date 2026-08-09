@@ -88,10 +88,14 @@ Open the generated URL in any web browser to view the interactive provenance tim
 Future Roadmap & Work to Be Done
 Work is ordered by priority for upcoming development sprints:
 
-Priority 1: High Priority (Core System Functionality)
-Stakeholder UI Forms (Mobile): Build specialized React Native UI screens tailored to each stakeholder role (Farmer, Processor, QC Testing Lab, Manufacturer).
-Camera & QR Scanner Integration: Integrate expo-camera or expo-barcode-scanner into the mobile app to allow field workers to scan batch IDs directly from physical containers.
-Secure Key Management: Implement secure mobile key storage using Expo SecureStore / React Native Keychain instead of raw memory objects.
+Priority 1: High Priority (Core Interfaces & Client Applications)
+Dedicated Web Frontend Application (React / Next.js):
+   Enterprise Stakeholder Dashboard: Web portal for Processors and Manufacturers to perform bulk batch logging, certificate uploads, and batch-splitting workflows.
+   Regulatory & Auditor Portal: Compliance interface for government regulators to audit batch lineages, inspect flagged anomalies, and bulk-verify cryptographic signatures across regions.
+   Enhanced Consumer Verification Web Portal: Polished, interactive consumer landing page for QR code scans featuring interactive supply chain maps, farmer profiles, and downloadable Certificates of Analysis (CoAs).
+Mobile Stakeholder UI Forms (React Native): Build specialized role-based UI screens for field stakeholders (Farmer, Processor, QC Testing Lab, Manufacturer).
+Camera & Barcode Scanner Integration: Integrate native barcode and QR scanning (`expo-camera`) into the mobile app to scan physical batch containers directly.
+Secure On-Device Key Storage: Migrate key pair storage to Expo SecureStore / React Native Keychain to secure private keys at rest.
 
 Priority 2: Medium Priority (Data Quality & Verification)
 Quality Anomaly Detection Engine: Add backend validation rules / threshold checks to automatically flag out-of-range quality parameters (e.g., excessive moisture, failed heavy metal tests) or suspicious timestamps.
