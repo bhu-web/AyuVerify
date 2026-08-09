@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../config/db');
 const { verifyEventSignature } = require('../middlewares/verifySignature');
+const { verifySignature } = require('@ayuverify/shared-crypto');
 
 // 1. Create New Batch (Farmer / Collector)
 router.post('/create', (req, res) => {
@@ -79,6 +80,57 @@ router.get('/:batchId/lineage', (req, res) => {
           payload_json: JSON.parse(ev.payload_json)
         }))
       });
+    });
+  });
+});
+
+// 4. Public Consumer QR Verification Endpoint
+router.get('/verify/:batchId', (req, res) => {
+  const { batchId } = req.params;
+
+  const query = `
+    SELECT e.*, u.name as actor_name, u.role as actor_role, u.public_key
+    FROM event_records e
+    JOIN users u ON e.actor_id = u.id
+    WHERE e.batch_id = ?
+    ORDER BY e.created_at ASC
+  `;
+
+  db.all(query, [batchId], async (err, events) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!events || events.length === 0) {
+      return res.status(404).json({ 
+        status: 'NOT_FOUND',
+        message: 'No traceability records found for this batch identifier.' 
+      });
+    }
+
+    let isChainAuthentic = true;
+    const verifiedEvents = [];
+
+    // Re-verify every cryptographic signature in the provenance chain
+    for (const ev of events) {
+      const isValid = await verifySignature(ev.record_hash, ev.digital_signature, ev.public_key);
+      if (!isValid) {
+        isChainAuthentic = false;
+      }
+
+      verifiedEvents.push({
+        eventId: ev.event_id,
+        stage: ev.stage,
+        actorName: ev.actor_name,
+        actorRole: ev.actor_role,
+        payload: JSON.parse(ev.payload_json),
+        createdAt: ev.created_at,
+        isSignatureValid: isValid
+      });
+    }
+
+    res.json({
+      batchId,
+      status: isChainAuthentic ? 'AUTHENTIC' : 'SUSPICIOUS_TAMPERED',
+      totalStages: verifiedEvents.length,
+      provenanceChain: verifiedEvents
     });
   });
 });
