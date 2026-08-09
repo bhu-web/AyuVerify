@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 
-// Public Web Portal view for QR Scans
 router.get('/:batchId', async (req, res) => {
   const { batchId } = req.params;
   const protocol = req.protocol;
@@ -59,7 +58,12 @@ router.get('/:batchId', async (req, res) => {
 
     res.send(html);
   } catch (err) {
-    res.status(404).send(`<h2>Batch Verification Error</h2><p>${err.response?.data?.message || 'Batch not found.'}</p>`);
+    res.status(404).send(`
+      <div style="font-family: sans-serif; text-align: center; margin-top: 50px;">
+        <h2 style="color: #c62828;">Batch Not Found</h2>
+        <p>No verified provenance records exist for batch identifier: <strong>${batchId}</strong></p>
+      </div>
+    `);
   }
 });
 
