@@ -1,19 +1,20 @@
 {
   "name": "@ayuverify/mobile",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
-    "ios": "expo start --ios"
+    "ios": "expo start --ios",
+    "web": "expo start --web"
   },
   "dependencies": {
     "@ayuverify/shared-crypto": "file:../../packages/shared-crypto",
-    "@react-native-async-storage/async-storage": "^1.23.0",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "axios": "^1.7.2",
-    "expo": "~51.0.0",
-    "expo-sqlite": "~14.0.0",
-    "react": "18.2.0",
-    "react-native": "0.74.1"
+    "expo": "~54.0.36",
+    "expo-sqlite": "~16.0.10",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
   }
 }
