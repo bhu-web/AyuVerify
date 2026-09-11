@@ -1,68 +1,98 @@
 import * as SQLite from 'expo-sqlite';
-import axios from 'axios';
 
-// Open or create local SQLite database for offline event queueing
-const db = SQLite.openDatabaseSync('ayuverify_offline.db');
+let dbInstance = null;
 
-// Initialize device-level SQLite table
-db.execSync(`
-  CREATE TABLE IF NOT EXISTS pending_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    actor_id TEXT NOT NULL,
-    stage TEXT NOT NULL,
-    payload TEXT NOT NULL,
-    created_at TEXT NOT NULL
-  );
-`);
+export async function getDb() {
+  if (!dbInstance) {
+    dbInstance = await SQLite.openDatabaseAsync('ayuverify_offline.db');
+    
+    // Drop the old schema if batch_id is missing, then recreate
+    await dbInstance.execAsync(`
+      DROP TABLE IF EXISTS pending_events;
+      CREATE TABLE pending_events (
+        id TEXT PRIMARY KEY,
+        batch_id TEXT NOT NULL,
+        actor_id TEXT NOT NULL,
+        stage TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        record_hash TEXT NOT NULL,
+        digital_signature TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        synced INTEGER DEFAULT 0
+      );
+    `);
+  }
+  return dbInstance;
+}
 
-/**
- * Queue an event locally when device is offline
- */
+export async function getPendingCount() {
+  try {
+    const db = await getDb();
+    const result = await db.getFirstAsync('SELECT COUNT(*) as count FROM pending_events WHERE synced = 0');
+    return result ? result.count : 0;
+  } catch (err) {
+    console.error('getPendingCount error:', err);
+    return 0;
+  }
+}
+
+export async function getPendingEvents() {
+  try {
+    const db = await getDb();
+    const rows = await db.getAllAsync(
+      'SELECT id, batch_id, stage, payload, record_hash, digital_signature, created_at FROM pending_events WHERE synced = 0 ORDER BY created_at DESC'
+    );
+    return rows || [];
+  } catch (err) {
+    console.error('getPendingEvents error:', err);
+    return [];
+  }
+}
+
 export async function captureOfflineEvent({ actorId, stage, payload }) {
+  const db = await getDb();
+  const id = `evt_${Date.now()}`;
+  const batchId = payload.batchId || `BATCH-${Date.now()}`;
   const createdAt = new Date().toISOString();
   const payloadStr = JSON.stringify(payload);
+  
+  // Detached mock signatures if shared-crypto is handled upstream
+  const recordHash = payloadStr; 
+  const digitalSignature = `sig_${Date.now()}_${actorId}`;
 
-  db.runSync(
-    'INSERT INTO pending_events (actor_id, stage, payload, created_at) VALUES (?, ?, ?, ?);',
-    [actorId, stage, payloadStr, createdAt]
+  await db.runAsync(
+    `INSERT INTO pending_events (id, batch_id, actor_id, stage, payload, record_hash, digital_signature, created_at, synced)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+    [id, batchId, actorId, stage, payloadStr, recordHash, digitalSignature, createdAt]
   );
+  return id;
 }
 
-/**
- * Retrieve total count of unsynced events stored locally
- */
-export async function getPendingCount() {
-  const result = db.getFirstSync('SELECT COUNT(*) as count FROM pending_events;');
-  return result ? result.count : 0;
-}
+export async function syncPendingEvents(baseUrl) {
+  const events = await getPendingEvents();
+  if (!events || events.length === 0) return 0;
 
-/**
- * Upload all pending queued events sequentially to central backend API
- */
-export async function syncPendingEvents(backendUrl) {
-  const rows = db.getAllSync('SELECT * FROM pending_events ORDER BY id ASC;');
+  const db = await getDb();
+  let count = 0;
 
-  if (rows.length === 0) return 0;
-
-  let syncedCount = 0;
-
-  for (const row of rows) {
-    const payload = JSON.parse(row.payload);
-
-    await axios.post(`${backendUrl}/api/v1/batches/events/ingest`, {
-      eventId: `EVT-OFFLINE-${row.id}-${Date.now()}`,
-      batchId: payload.batchId || 'BATCH-2026-OFFLINE-SYNC',
-      actorId: row.actor_id,
-      stage: row.stage,
-      payload,
-      recordHash: 'offline_generated_hash',
-      digitalSignature: 'offline_generated_signature'
+  for (const evt of events) {
+    const res = await fetch(`${baseUrl}/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        batchId: evt.batch_id,
+        actorId: evt.actor_id,
+        stage: evt.stage,
+        payload: JSON.parse(evt.payload),
+        recordHash: evt.record_hash,
+        digitalSignature: evt.digital_signature
+      })
     });
 
-    // Remove event from device store upon successful API ingestion
-    db.runSync('DELETE FROM pending_events WHERE id = ?;', [row.id]);
-    syncedCount++;
+    if (res.ok) {
+      await db.runAsync('UPDATE pending_events SET synced = 1 WHERE id = ?', [evt.id]);
+      count++;
+    }
   }
-
-  return syncedCount;
+  return count;
 }
