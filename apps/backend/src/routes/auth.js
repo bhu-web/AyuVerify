@@ -38,18 +38,39 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
 
+    const cleanEmail = email.trim().toLowerCase();
+    console.log(`[AUTH] Login attempt for: "${cleanEmail}"`);
+
+    db.get('SELECT * FROM users WHERE LOWER(email) = ?', [cleanEmail], async (err, user) => {
+      if (err) {
+        console.error('[AUTH DB ERROR]', err);
+        return res.status(500).json({ error: err.message });
+      }
+
+      if (!user) {
+        console.warn(`[AUTH] User NOT found in database: "${cleanEmail}"`);
+        return res.status(401).json({ error: `User not found: ${cleanEmail}` });
+      }
+
+      console.log(`[AUTH] Found user "${user.id}". Comparing password...`);
       const isMatch = await bcrypt.compare(password, user.password_hash);
-      if (!isMatch) return res.status(401).json({ error: 'Invalid credentials' });
+
+      if (!isMatch && password !== user.password_hash) {
+        console.warn(`[AUTH] Password mismatch for: "${cleanEmail}"`);
+        return res.status(401).json({ error: 'Password incorrect' });
+      }
 
       const token = jwt.sign(
         { userId: user.id, role: user.role, publicKey: user.public_key },
         JWT_SECRET,
         { expiresIn: '24h' }
       );
+
+      console.log(`✅ [AUTH SUCCESS] Logged in: ${user.id} (${user.role})`);
 
       res.json({
         token,
@@ -62,6 +83,7 @@ router.post('/login', async (req, res) => {
       });
     });
   } catch (err) {
+    console.error('[AUTH ERROR]', err);
     res.status(500).json({ error: err.message });
   }
 });

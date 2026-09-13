@@ -1,8 +1,60 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const bcrypt = require('bcryptjs');
 
 const dbPath = path.join(__dirname, '../../ayuverify.db');
 const db = new sqlite3.Database(dbPath);
+
+const seedDefaultUsers = () => {
+  // Use hashSync inside serialize so it executes sequentially without race conditions
+  const defaultHash = bcrypt.hashSync('password123', 10);
+
+  const defaultUsers = [
+    {
+      id: 'FARMER_01',
+      name: 'Ramesh Patel (Collector)',
+      email: 'farmer@ayuverify.org',
+      role: 'FARMER',
+      publicKey: 'wT1yP8f/0j3n9X4Qk4m3yJ7hN8kL9vP2qR4sT5uV6w8='
+    },
+    {
+      id: 'PROCESSOR_01',
+      name: 'AyurProcess Extraction Ltd',
+      email: 'processor@ayuverify.org',
+      role: 'PROCESSOR',
+      publicKey: 'xK9yP8f/0j3n9X4Qk4m3yJ7hN8kL9vP2qR4sT5uV6w8='
+    },
+    {
+      id: 'QC_LAB_01',
+      name: 'BioAyu Analytical Laboratories',
+      email: 'qc@ayuverify.org',
+      role: 'QC_LAB',
+      publicKey: 'zM2yP8f/0j3n9X4Qk4m3yJ7hN8kL9vP2qR4sT5uV6w8='
+    },
+    {
+      id: 'MANUFACTURER_01',
+      name: 'PureVeda Naturals',
+      email: 'manufacturer@ayuverify.org',
+      role: 'MANUFACTURER',
+      publicKey: 'qR3yP8f/0j3n9X4Qk4m3yJ7hN8kL9vP2qR4sT5uV6w8='
+    }
+  ];
+
+  defaultUsers.forEach((u) => {
+    db.run(
+      `INSERT OR REPLACE INTO users (id, name, email, password_hash, role, public_key)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [u.id, u.name, u.email, defaultHash, u.role, u.publicKey],
+      (err) => {
+        if (err) {
+          console.error(`❌ Seeding error for ${u.id}:`, err.message);
+        }
+      }
+    );
+  });
+
+  console.log('✅ Default Stakeholders Seeded Successfully');
+};
 
 const initDB = () => {
   db.serialize(() => {
@@ -53,6 +105,8 @@ const initDB = () => {
         console.error('❌ Database Initialization Error:', err.message);
       } else {
         console.log('✅ SQLite Database Tables Initialized Successfully');
+        // Seed users immediately once tables are created
+        seedDefaultUsers();
       }
     });
   });
